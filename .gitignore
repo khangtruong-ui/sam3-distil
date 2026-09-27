@@ -1,0 +1,41 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Distribution / packaging
+dist/
+build/
+*.egg-info/
+.eggs/
+
+# Checkpoint model weights (>100MB; use scripts/download_checkpoints.sh)
+checkpoints/**/*.pt
+checkpoints/**/*.pth
+checkpoints/**/*.bin
+checkpoints/.cache/
+*.pt
+*.pth
+*.bin
+output/
+
+# Cache and temporary data
+.cache/
+data/sa-1b/
+data/coco/
+data/lvis/
+data/odinw/
+data/rf100-vl/
+data/sa-v/
+data/sa-v-text/
+
+# Pytest / coverage
+.pytest_cache/
+.coverage
+htmlcov/
+
+# Editor / OS files
+.DS_Store
+*.swp
+*.swo

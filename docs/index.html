@@ -1,0 +1,506 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <meta name="description"
+        content="EfficientSAM3 distills SAM1, SAM2, and SAM3 into lightweight models that bring promptable concept segmentation to edge devices.">
+  <meta name="keywords" content="EfficientSAM3, SAM3, segmentation, knowledge distillation, edge AI, promptable concept segmentation">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>EfficientSAM3</title>
+
+  <link href="https://fonts.googleapis.com/css?family=Google+Sans|Noto+Sans|Castoro"
+        rel="stylesheet">
+
+  <link rel="stylesheet" href="./static/css/bulma.min.css">
+  <link rel="stylesheet" href="./static/css/fontawesome.all.min.css">
+  <link rel="stylesheet"
+        href="https://cdn.jsdelivr.net/gh/jpswalsh/academicons@1/css/academicons.min.css">
+  <link rel="stylesheet" href="./static/css/index.css">
+  <link rel="icon" href="./static/images/favicon.svg?v=2">
+
+  <script src="https://ajax.googleapis.com/ajax/libs/jquery/3.5.1/jquery.min.js"></script>
+  <script defer src="./static/js/fontawesome.all.min.js"></script>
+  <script src="./static/js/index.js"></script>
+</head>
+<body>
+
+<nav class="navbar" role="navigation" aria-label="main navigation">
+  <div class="navbar-brand">
+    <a role="button" class="navbar-burger" aria-label="menu" aria-expanded="false">
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+      <span aria-hidden="true"></span>
+    </a>
+  </div>
+  <div class="navbar-menu">
+    <div class="navbar-start" style="flex-grow: 1; justify-content: center;">
+      <a class="navbar-item" href="https://simonzeng7108.github.io/about/">
+        <span class="icon">
+          <i class="fas fa-user"></i>
+        </span>
+        <span>Home Page</span>
+      </a>
+    </div>
+  </div>
+</nav>
+
+<section class="hero is-light">
+  <div class="hero-body">
+    <div class="container is-max-desktop">
+      <div class="columns is-centered">
+        <div class="column has-text-centered">
+          <span class="tag is-success is-light">✓ Stage 3 Fine-tuned Models Released! (90% smaller than ImageSAM3)</span>
+          <h1 class="title is-1 publication-title">EfficientSAM3: Progressive Hierarchical Knowledge Distillation from SAM1, SAM2 &amp; SAM3</h1>
+          <p class="is-size-5">Chengxi Simon Zeng, Yuxuan Jiang, Gao Ge, Shuai Wang, Fan Aaron Zhang · Visual Information Lab, University of Bristol; MultiX lab, University of Amsterdam</p>
+          <div class="buttons is-centered mt-5">
+            <a class="button is-dark is-rounded" href="https://github.com/SimonZeng7108/efficientsam3">
+              <span class="icon"><i class="fab fa-github"></i></span>
+              <span>GitHub</span>
+            </a>
+            <a class="button is-link is-rounded" href="https://huggingface.co/Simon7108528/EfficientSAM3">
+            <span class="icon huggingface-icon">🤗</span>
+              <span>Weights</span>
+            </a>
+            <a class="button is-info is-rounded" href="#model-zoo">
+              <span class="icon"><i class="fas fa-database"></i></span>
+              <span>Model Zoo</span>
+            </a>
+            <a class="button is-danger is-rounded" href="https://arxiv.org/abs/2511.15833">
+              <span class="icon"><i class="ai ai-arxiv"></i></span>
+              <span>arXiv (Main)</span>
+            </a>
+            <a class="button is-danger is-rounded" href="https://arxiv.org/abs/2602.12173">
+              <span class="icon"><i class="ai ai-arxiv"></i></span>
+              <span>arXiv (LiteText)</span>
+            </a>
+            <a class="button is-primary is-rounded" href="https://discord.gg/FMyaQca7xT">
+              <span class="icon"><i class="fab fa-discord"></i></span>
+              <span>Discord</span>
+            </a>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-two-thirds">
+        <h2 class="title is-3">Why EfficientSAM3?</h2>
+        <div class="content has-text-justified">
+          <p>SAM3 delivers Promptable Concept Segmentation (PCS) by combining semantic understanding and temporal tracking, yet its massive backbone and dense memory bank make on-device deployment impractical. EfficientSAM3 compresses SAM1, SAM2, and SAM3 into a family of lightweight student models tailored for edge hardware without sacrificing PCS quality.</p>
+        </div>
+      </div>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-three-quarters">
+        <figure class="image">
+          <img src="https://raw.githubusercontent.com/SimonZeng7108/efficientsam3/main/images/efficientsam3_full.svg" alt="EfficientSAM3 architecture diagram">
+        </figure>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section is-light">
+  <div class="container is-max-desktop">
+    <div class="columns">
+      <div class="column">
+        <h3 class="title is-4">Updates</h3>
+        
+        <!-- v0.4.0 Release -->
+        <div class="box" style="background: linear-gradient(135deg, #f0f9ff 0%, #e0f2fe 100%); border-left: 4px solid #0ea5e9;">
+          <p><strong>v0.4.0 — Stage 3 Fine-Tuned PCS Models</strong> (2026-06-11)</p>
+          <p style="font-size: 0.9em;">EfficientSAM3 full models (EV-M, RV-M, TV-M) fine-tuned on 5% SA1B data with complete PCS capabilities. <strong>Actual params: 89.2M / 92.7M / 95.3M</strong> (90% smaller than ImageSAM3).</p>
+          <p><a href="https://huggingface.co/Simon7108528/EfficientSAM3/tree/main/efficientsam3_ft">HuggingFace</a> · <a href="https://github.com/SimonZeng7108/efficientsam3/blob/main/README_stage3.md">Stage 3 Guide</a></p>
+        </div>
+        
+        <!-- v0.3.0 Release -->
+        <div class="box" style="background: linear-gradient(135deg, #f0fdf4 0%, #dcfce7 100%); border-left: 4px solid #22c55e;">
+          <p><strong>v0.3.0 — SAM3.1 & HuggingFace Integration</strong> (2026-04-13)</p>
+          <p style="font-size: 0.9em;">EfficientSAM3.1 & SAM3.1-LiteText released with official HuggingFace Transformers support.</p>
+          <p><a href="https://huggingface.co/docs/transformers/main/en/model_doc/sam3_lite_text">HF Docs</a> · <a href="https://huggingface.co/spaces/nielsr/sam-3-lite-text-vs-sam-3">Demo</a></p>
+        </div>
+        
+        <!-- v0.2.0 Release -->
+        <div class="box" style="background: linear-gradient(135deg, #faf5ff 0%, #f3e8ff 100%); border-left: 4px solid #a855f7;">
+          <p><strong>v0.2.0 — SAM3-LiteText</strong> (2026-02-18)</p>
+          <p style="font-size: 0.9em;">88% text encoder reduction with similar performance. Accepted by ICMR2026!</p>
+          <p><a href="https://arxiv.org/abs/2602.12173">Paper</a> · <a href="https://icmr2026.org/">ICMR2026</a></p>
+        </div>
+        
+        <details>
+        <summary><strong>Older updates</strong></summary>
+        <ul style="margin-top: 0.5em; font-size: 0.85em;">
+          <li><strong>2026/01/11:</strong> Stage 1 geometry-prompt fine-tuned weights released.</li>
+          <li><strong>2025/12/08:</strong> Stage 1 text encoder weights released (MobileCLIP S0, S1, MobileCLIP2 L).</li>
+          <li><strong>2025/12/02:</strong> Stage 1 image encoder weights released (RepViT, TinyViT, EfficientViT).</li>
+          <li><strong>2025/10/18:</strong> EfficientSAM3 project announced.</li>
+        </ul>
+        </details>
+      </div>
+      <div class="column">
+        <h3 class="title is-4">Highlights</h3>
+        <ul>
+          <li>Image encoders distilled into RepViT, TinyViT, and EfficientViT families.</li>
+          <li>Text encoders distilled into MobileCLIP variants (up to 87.96% smaller than SAM3's 354M text encoder), with SA-Co Gold+Silver fine-tuned (<strong>ft</strong>) weights.</li>
+          <li>Perceiver-based memory compression aligned with SAM2 temporal tracking.</li>
+          <li>ONNX/CoreML support for real-time mobile, embedded, and desktop deployment.</li>
+        </ul>
+      </div>
+      <div class="column">
+        <h3 class="title is-4">Resources</h3>
+        <ul>
+          <li><a href="https://github.com/SimonZeng7108/efficientsam3#readme">Project README</a> (installation, inference, training)</li>
+          <li><a href="https://github.com/SimonZeng7108/efficientsam3/blob/main/README_dataset.md">Dataset setup guide</a></li>
+          <li><a href="https://arxiv.org/abs/2511.15833">arXiv</a></li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns is-centered has-text-centered">
+      <div class="column is-four-fifths">
+        <h2 class="title is-3">Abstract</h2>
+        <div class="content has-text-justified">
+          <p>SAM3 brought promptable concept segmentation to production scale, but its computational footprint blocks latency-sensitive applications. EfficientSAM3 progressively distills SAM3 into lightweight architectures that maintain PCS quality on edge devices.</p>
+          <p>We employ a three-stage curriculum: (1) encoder distillation on SA-1B with prompt-in-the-loop supervision, (2) temporal memory distillation on SA-V using a compact Perceiver module, and (3) end-to-end fine-tuning on official SAM3 concept segmentation data. The resulting students deliver real-time segmentation, tracking, and prompt handling on resource-constrained platforms.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section is-light">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Three-Stage Progressive Distillation</h2>
+    <div class="columns">
+      <div class="column">
+        <div class="box">
+          <h3 class="title is-5 stage-box-title">Stage 1 · Compact Encoder</h3>
+          <p>Align nine student backbones (RepViT, TinyViT, EfficientViT) with the SAM3 encoder using SA-1B and prompt-in-the-loop supervision.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="box">
+          <h3 class="title is-5 stage-box-title">Stage 2 · Temporal Memory</h3>
+          <p>Compress SAM3's dense video memory into a Perceiver-based module distilled on SA-V, enabling efficient multi-frame reasoning.</p>
+        </div>
+      </div>
+      <div class="column">
+        <div class="box">
+          <h3 class="title is-5 stage-box-title">Stage 3 · Promptable PCS</h3>
+          <p>Jointly fine-tune encoder, memory, and decoder on SAM3 data to preserve promptable concept segmentation quality.</p>
+        </div>
+      </div>
+    </div>
+    <p class="has-text-centered">tl;dr: Stage 1 distills encoder on SAM1 data · Stage 2 aligns memory on SAM2 data · Stage 3 fine-tunes PCS on SAM3 data.</p>
+  </div>
+</section>
+
+<section class="section" id="get-started">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Get Started</h2>
+    <div class="columns">
+      <div class="column">
+        <h3 class="title is-5">Installation</h3>
+        <div class="content">
+          <pre><code>pip install -e ".[stage1]"</code></pre>
+          <p>See the <a href="https://github.com/SimonZeng7108/efficientsam3#installation">installation guide</a> for full setup instructions.</p>
+        </div>
+      </div>
+      <div class="column">
+        <h3 class="title is-5">Quick Start</h3>
+        <div class="content">
+          <pre><code>from sam3.model_builder import build_efficientsam3_image_model
+from sam3.model.sam3_image_processor import Sam3Processor
+from PIL import Image
+
+# Load EfficientSAM3 TV-M model (uses TinyViT vision encoder + MobileCLIP-S0 text encoder)
+model = build_efficientsam3_image_model(
+    checkpoint_path="efficientsam3_tinyvit.pt",
+    backbone_type="tinyvit",
+    model_name="11m",
+    text_encoder_type="MobileCLIP-S0",
+    text_encoder_context_length=16,
+    load_from_HF=False,
+)
+
+# Process image
+processor = Sam3Processor(model)
+image = Image.open("your_image.jpg").convert("RGB")
+state = processor.set_image(image)
+
+# Text prompt segmentation
+state = processor.set_text_prompt("dog", state)
+
+# Get masks
+masks = state["masks"]
+scores = state["scores"]
+print(f"Found {len(masks)} masks")</code></pre>
+          <p>See <a href="https://github.com/SimonZeng7108/efficientsam3">Project README</a> for more examples including SAM3-LiteText.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section is-light" id="model-zoo">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3">EfficientSAM3 Model Zoo &amp; Weight Release</h2>
+    
+    <h3 class="title is-4 mt-5">EfficientSAM3 Full Models (Lightweight Image + Text Encoders) <span class="tag is-success is-light ml-2">New</span></h3>
+    <p class="mb-3">EfficientSAM3 compresses both SAM3's vision encoder and text encoder into lightweight student models while maintaining competitive performance on downstream benchmarks.</p>
+    <div class="table-container">
+      <table class="table is-striped is-fullwidth">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Vision</th>
+            <th>Text</th>
+            <th>Transformer</th>
+            <th>Other</th>
+            <th>Params</th>
+            <th>vs ImageSAM3</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>EV-M</strong></td>
+            <td>22.2M</td>
+            <td>42.5M</td>
+            <td>21.0M</td>
+            <td>3.5M</td>
+            <td><strong>89.2M</strong></td>
+            <td><span class="tag is-success">90% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/efficientsam3_ft/efficientsam3_efficientvit.pt?download=true">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>RV-M</strong></td>
+            <td>25.6M</td>
+            <td>42.5M</td>
+            <td>21.0M</td>
+            <td>3.5M</td>
+            <td><strong>92.7M</strong></td>
+            <td><span class="tag is-success">89% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/efficientsam3_ft/efficientsam3_repvit.pt?download=true">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>TV-M</strong></td>
+            <td>28.3M</td>
+            <td>42.5M</td>
+            <td>21.0M</td>
+            <td>3.5M</td>
+            <td><strong>95.3M</strong></td>
+            <td><span class="tag is-success">89% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/efficientsam3_ft/efficientsam3_tinyvit.pt?download=true">HF</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="notification is-info is-light mt-3"><strong>Note:</strong> "Text" is the distilled text encoder. "Transformer" is the mask decoder. "Other" includes segmentation head + scoring. ImageSAM3 (for comparison): Vision: 463M + Text: 354M + Transformer: 30.3M + Other: 14.2M = **861.5M**</p>
+
+    <h3 class="title is-4 mt-5">SAM3-LiteText Models (Lightweight Text Encoder Only)</h3>
+    <p class="mb-3">SAM3-LiteText keeps the SAM3 vision encoder but replaces the text encoder with lightweight MobileCLIP variants.</p>
+    <div class="table-container">
+      <table class="table is-striped is-fullwidth">
+        <thead>
+          <tr>
+            <th>Model</th>
+            <th>Vision</th>
+            <th>Text</th>
+            <th>Transformer</th>
+            <th>Other</th>
+            <th>Params</th>
+            <th>vs ImageSAM3</th>
+            <th>Download</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr>
+            <td><strong>LiteText-S0-16</strong></td>
+            <td>463.0M</td>
+            <td>42.5M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>550.0M</strong></td>
+            <td><span class="tag is-success">36% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip_s0_ctx16.pt">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>LiteText-S0-32</strong></td>
+            <td>463.0M</td>
+            <td>42.5M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>550.0M</strong></td>
+            <td><span class="tag is-success">36% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip_s0_ctx32.pt">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>LiteText-S1-16</strong></td>
+            <td>463.0M</td>
+            <td>63.5M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>571.0M</strong></td>
+            <td><span class="tag is-success">34% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip_s1_ctx16.pt">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>LiteText-S1-32</strong></td>
+            <td>463.0M</td>
+            <td>63.5M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>571.0M</strong></td>
+            <td><span class="tag is-success">34% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip_s1_ctx32.pt">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>LiteText-L-16</strong></td>
+            <td>463.0M</td>
+            <td>123.8M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>631.3M</strong></td>
+            <td><span class="tag is-info">27% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip2_l_ctx16.pt">HF</a></td>
+          </tr>
+          <tr>
+            <td><strong>LiteText-L-32</strong></td>
+            <td>463.0M</td>
+            <td>123.8M</td>
+            <td>30.3M</td>
+            <td>14.2M</td>
+            <td><strong>631.3M</strong></td>
+            <td><span class="tag is-info">27% smaller</span></td>
+            <td><a href="https://huggingface.co/Simon7108528/EfficientSAM3/resolve/main/sam3_litetext/sam3_litetext_mobileclip2_l_ctx32.pt">HF</a></td>
+          </tr>
+        </tbody>
+      </table>
+    </div>
+    <p class="notification is-info is-light mt-3"><strong>Note:</strong> "Text" is the distilled text encoder (42.5M-123.8M). SAM3-LiteText keeps SAM3's ViT-H vision encoder (~463M) but replaces the text encoder. "Other" includes geometry encoder + segmentation head + scoring.</p>
+
+    <h3 class="title is-4 mt-5">Stage 1 Encoder Weights (for training)</h3>
+    <p class="mb-3">Stage 1 distilled image encoder and text encoder weights for training. See <a href="https://github.com/SimonZeng7108/efficientsam3/blob/main/README_stage1.md">README_stage1.md</a> for details.</p>
+    <p class="notification is-info is-light"><a href="https://huggingface.co/Simon7108528/EfficientSAM3/tree/main/stage1_all_converted">Browse all Stage 1 weights on HuggingFace</a> | <a href="https://github.com/SimonZeng7108/efficientsam3/blob/main/README_stage1.md">Training guide</a></p>
+  </div>
+</section>
+<section class="section">
+  <div class="container is-max-desktop">
+    <div class="columns">
+      <div class="column">
+        <h3 class="title is-4">Datasets</h3>
+        <p>Dataset preparation scripts for COCO, DAVIS, LVIS, SA-1B, SA-V, LVOS, MOSE, and YouTube-VOS are located under <code>data/download_*.sh</code>. Refer to <a href="README_dataset.md">README_dataset.md</a> for detailed instructions.</p>
+      </div>
+      <div class="column">
+        <h3 class="title is-4">Export &amp; Deployment</h3>
+        <p>ONNX and CoreML export pipelines are under development to unlock mobile and cross-platform deployment. Follow the repository issues for progress updates.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section is-light">
+  <div class="container is-max-desktop">
+    <div class="columns">
+      <div class="column">
+        <h3 class="title is-4">Roadmap</h3>
+        <ul>
+          <li><span class="tag is-success is-light">✓ Completed</span> Release Stage 1 image encoder weights (distilled from SAM3 image encoder)</li>
+          <li><span class="tag is-success is-light">✓ Completed</span> Release Stage 1 text encoder weights (distilled from SAM3 text encoder to MobileCLIP-S1 combined with all 9 image encoder variants)</li>
+          <li><span class="tag is-success is-light">✓ Completed</span> Release Stage 1+ fine-tuned (<strong>ft</strong>) encoder weights (geometry-prompt fine-tuning; SA-Co Gold+Silver text fine-tuning)</li>
+          <li><span class="tag is-success is-light">✓ Completed</span> Release SAM3-LiteText weights (distilled lightweight text encoder competitive with SAM3 text encoder)</li>
+          <li><span class="tag is-success is-light">✓ Completed</span> <strong>Release Stage 3 fine-tuned PCS models</strong> (2026/06/11)</li>
+          <li><span class="tag is-info is-light">Planned</span> Release Stage 2 memory bank aligned models</li>
+          <li><span class="tag is-info is-light">Planned</span> ONNX/CoreML export</li>
+          <li><span class="tag is-info is-light">Planned</span> Interactive web demo</li>
+        </ul>
+      </div>
+      <div class="column">
+        <h3 class="title is-4">Call for Contributions</h3>
+        <p>We welcome pull requests across the ecosystem:</p>
+        <ul>
+          <li>Efficient MedSAM3 integration and medical datasets</li>
+          <li>Gradio demos, Vercel deployments, and Hugging Face Spaces</li>
+          <li>Annotation tool support (X-AnyLabeling, AnyLabeling)</li>
+          <li>iOS, Android, and NVCC-based desktop applications</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section class="section is-light">
+  <div class="container is-max-desktop">
+    <h2 class="title is-3 has-text-centered">Users</h2>
+    <p class="has-text-centered">Organizations and projects using EfficientSAM3:</p>
+    
+    <div class="columns is-mobile is-multiline is-centered mt-5">
+      <div class="column is-one-fifth-desktop is-one-third-tablet has-text-centered">
+        <img src="https://raw.githubusercontent.com/SimonZeng7108/simonzeng7108.github.io/main/efficientsam3/static/images/esa.png" alt="European Space Agency" style="height: 80px; margin-bottom: 10px;">
+        <p><a href="https://www.esa.int/Applications/Observing_the_Earth/Phsat-2/Introducing_Phsat-2">European Space Agency</a></p>
+      </div>
+    </div>
+    
+    <div class="notification is-info is-light mt-5">
+      <p><strong>Note:</strong> If you're using EfficientSAM3 in your work, please acknowledge us in your publications or projects. We're happy to promote your work here! Contact us to be featured in this section.</p>
+    </div>
+  </div>
+</section>
+
+<section class="section" id="citation">
+  <div class="container is-max-desktop content">
+    <h2 class="title">Citation</h2>
+    <pre><code>@misc{zeng2025efficientsam3progressivehierarchicaldistillation,
+      title={EfficientSAM3: Progressive Hierarchical Distillation for Video Concept Segmentation from SAM1, 2, and 3}, 
+      author={Chengxi Zeng and Yuxuan Jiang and Aaron Zhang},
+      year={2025},
+      eprint={2511.15833},
+      archivePrefix={arXiv},
+      primaryClass={cs.CV},
+      url={https://arxiv.org/abs/2511.15833}, 
+}
+
+@misc{zeng2026sam3litetextanatomicalstudysam3,
+      title={SAM3-LiteText: An Anatomical Study of the SAM3 Text Encoder for Efficient Vision-Language Segmentation}, 
+      author={Chengxi Zeng and Yuxuan Jiang and Ge Gao and Shuai Wang and Duolikun Danier and Bin Zhu and Stevan Rudinac and David Bull and Fan Zhang},
+      year={2026},
+      eprint={2602.12173},
+      archivePrefix={arXiv},
+      primaryClass={cs.AI},
+      url={https://arxiv.org/abs/2602.12173}, 
+}</code></pre>
+  </div>
+</section>
+
+<footer class="footer">
+  <div class="container">
+    <div class="content has-text-centered">
+      <a class="icon-link" href="https://github.com/SimonZeng7108/efficientsam3">
+        <i class="fab fa-github"></i>
+      </a>
+      <a class="icon-link" href="https://huggingface.co/Simon7108528/EfficientSAM3">
+        <i class="ai ai-huggingface"></i>
+      </a>
+    </div>
+    <div class="columns is-centered">
+      <div class="column is-8">
+        <div class="content has-text-centered">
+          <p>This website follows the <a href="http://creativecommons.org/licenses/by-sa/4.0/">Creative Commons Attribution-ShareAlike 4.0 International License</a>.</p>
+          <p>Template adapted from <a href="https://github.com/nerfies/nerfies.github.io">nerfies.github.io</a> with attribution.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</footer>
+
+</body>
+</html>
