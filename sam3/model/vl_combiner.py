@@ -126,13 +126,24 @@ class SAM3VLBackbone(nn.Module):
     def forward_text(
         self, captions, input_boxes=None, additional_text=None, device=None
     ):
-        return activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
-            captions=captions,
-            input_boxes=input_boxes,
-            additional_text=additional_text,
-            device=device,
-            act_ckpt_enable=self.act_ckpt_whole_language_backbone and self.training,
-        )
+        try:
+            return activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
+                captions=captions,
+                input_boxes=input_boxes,
+                additional_text=additional_text,
+                device=device,
+                act_ckpt_enable=self.act_ckpt_whole_language_backbone and self.training,
+            )
+        except RuntimeError as exc:
+            if "FIND was unable to find an engine" in str(exc) or "cuDNN" in str(exc):
+                with torch.backends.cudnn.flags(enabled=False):
+                    return self._forward_text_no_ack_ckpt(
+                        captions=captions,
+                        input_boxes=input_boxes,
+                        additional_text=additional_text,
+                        device=device,
+                    )
+            raise exc
 
     def _forward_text_no_ack_ckpt(
         self,

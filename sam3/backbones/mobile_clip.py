@@ -128,12 +128,26 @@ class MobileOneBlock(nn.Module):
 
         scale_out = 0
         if self.rbr_scale is not None:
-            scale_out = self.rbr_scale(x)
+            try:
+                scale_out = self.rbr_scale(x)
+            except RuntimeError as exc:
+                if "FIND was unable to find an engine" in str(exc) or "cuDNN" in str(exc):
+                    with torch.backends.cudnn.flags(enabled=False):
+                        scale_out = self.rbr_scale(x)
+                else:
+                    raise exc
 
         out = scale_out + identity_out
         if self.rbr_conv is not None:
             for ix in range(self.num_conv_branches):
-                out += self.rbr_conv[ix](x)
+                try:
+                    out += self.rbr_conv[ix](x)
+                except RuntimeError as exc:
+                    if "FIND was unable to find an engine" in str(exc) or "cuDNN" in str(exc):
+                        with torch.backends.cudnn.flags(enabled=False):
+                            out += self.rbr_conv[ix](x)
+                    else:
+                        raise exc
 
         return self.activation(self.se(out))
 
@@ -168,7 +182,7 @@ class MobileOneBlock(nn.Module):
         bias_scale = 0
         if self.rbr_scale is not None:
             kernel_scale, bias_scale = self._fuse_bn_tensor(self.rbr_scale)
-            pad = self.kernel_size // 2
+            pad = (self.kernel_size if isinstance(self.kernel_size, int) else self.kernel_size[-1]) // 2
             kernel_scale = torch.nn.functional.pad(kernel_scale, [pad, pad, pad, pad])
 
         kernel_identity = 0
@@ -533,7 +547,14 @@ class ConvFFN(nn.Module):
                 nn.init.constant_(m.bias, 0)
 
     def forward(self, x: torch.Tensor) -> torch.Tensor:
-        x = self.conv(x)
+        try:
+            x = self.conv(x)
+        except RuntimeError as exc:
+            if "FIND was unable to find an engine" in str(exc) or "cuDNN" in str(exc):
+                with torch.backends.cudnn.flags(enabled=False):
+                    x = self.conv(x)
+            else:
+                raise exc
         x = self.fc1(x)
         x = self.act(x)
         x = self.drop(x)
