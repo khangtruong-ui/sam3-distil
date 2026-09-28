@@ -7,6 +7,9 @@ from .model_builder import (
     build_efficientsam3_video_model,
     build_efficientsam3_video_predictor,
     build_sam3_video_predictor,
+    download_ckpt_from_hf,
+    from_pretrained,
+    resolve_checkpoint_path,
 )
 
 __version__ = "0.1.0"
@@ -18,4 +21,7 @@ __all__ = [
     "build_efficientsam3_video_model",
     "build_efficientsam3_video_predictor",
     "build_sam3_video_predictor",
+    "download_ckpt_from_hf",
+    "from_pretrained",
+    "resolve_checkpoint_path",
 ]

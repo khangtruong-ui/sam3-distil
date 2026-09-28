@@ -22,6 +22,14 @@ echo "Downloading EfficientSAM3 Pretrained Weights"
 echo "Target directory: $DEST_DIR"
 echo "=========================================================="
 
+# Check if python with huggingface_hub is available to leverage the HF cache directory
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if command -v python3 &> /dev/null && python3 -c "import huggingface_hub" &> /dev/null; then
+    echo "[INFO] Using huggingface_hub Python downloader (caching in \$HF_HOME/hub)..."
+    python3 "$SCRIPT_DIR/download_checkpoints.py" --dest-dir "$DEST_DIR"
+    exit 0
+fi
+
 for model in "${MODELS[@]}"; do
     TARGET_PATH="$DEST_DIR/$model"
     if [ -f "$TARGET_PATH" ]; then

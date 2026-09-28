@@ -104,6 +104,22 @@ class Sam3Image(torch.nn.Module):
 
         self.inst_interactive_predictor = inst_interactive_predictor
 
+    @classmethod
+    def from_pretrained(
+        cls,
+        pretrained_model_name_or_path: Optional[str] = None,
+        *args,
+        **kwargs,
+    ):
+        """Hugging Face standard from_pretrained loader for SAM3 and EfficientSAM3 models.
+
+        Supports local checkpoint paths, local directories, Hugging Face repo IDs
+        (e.g. 'Simon7108528/EfficientSAM3', 'facebook/sam3'), and HF URIs ('hf://...').
+        Weights are cached in the standard Hugging Face cache directory ($HF_HOME/hub).
+        """
+        from sam3.model_builder import from_pretrained
+        return from_pretrained(pretrained_model_name_or_path, *args, is_video=False, **kwargs)
+
     @property
     def device(self):
         self._device = getattr(self, "_device", None) or next(self.parameters()).device

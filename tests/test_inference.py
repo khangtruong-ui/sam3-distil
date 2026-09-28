@@ -8,7 +8,7 @@ import torch
 import numpy as np
 from PIL import Image
 
-from sam3.model_builder import build_efficientsam3_image_model
+from sam3.model_builder import build_efficientsam3_image_model, resolve_checkpoint_path
 from sam3.model.sam3_image_processor import Sam3Processor
 
 
@@ -30,9 +30,13 @@ def device():
 
 @pytest.fixture(scope="module")
 def tinyvit_model(device):
-    ckpt_path = "checkpoints/efficientsam3_ft/efficientsam3_tinyvit.pt"
-    if not os.path.exists(ckpt_path):
-        pytest.skip(f"Checkpoint not found at {ckpt_path}, skipping live inference test.")
+    raw_path = "checkpoints/efficientsam3_ft/efficientsam3_tinyvit.pt"
+    try:
+        ckpt_path = resolve_checkpoint_path(raw_path, backbone_type="tinyvit")
+    except Exception:
+        ckpt_path = None
+    if not ckpt_path or not os.path.exists(ckpt_path):
+        pytest.skip(f"Checkpoint not found at {raw_path} or HF Hub, skipping live inference test.")
     
     model = build_efficientsam3_image_model(
         checkpoint_path=ckpt_path,

@@ -71,12 +71,18 @@ Or download manually into `checkpoints/efficientsam3_ft/`:
 
 ## Quick Start: Python API
 
+Load models directly using Hugging Face style `from_pretrained` (cached automatically in `$HF_HOME/hub` / `~/.cache/huggingface/hub`):
+
 ```python
 from PIL import Image
+from sam3 import from_pretrained
 from sam3.model_builder import build_efficientsam3_image_model
 from sam3.model.sam3_image_processor import Sam3Processor
 
-# 1. Build EfficientSAM3 (TinyViT-11M + MobileCLIP-S0)
+# Option A: Standard Hugging Face from_pretrained
+model = from_pretrained("Simon7108528/EfficientSAM3", backbone_type="tinyvit", device="cuda")
+
+# Option B: Builder function (automatically fetches from HF Hub into cache if local file is missing)
 model = build_efficientsam3_image_model(
     checkpoint_path="checkpoints/efficientsam3_ft/efficientsam3_tinyvit.pt",
     backbone_type="tinyvit",

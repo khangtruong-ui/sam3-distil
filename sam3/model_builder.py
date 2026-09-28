@@ -1,7 +1,9 @@
 # Copyright (c) Meta Platforms, Inc. and affiliates. All Rights Reserved
 
+import logging
 import os
-from typing import Optional
+import re
+from typing import Any, Dict, List, Optional, Tuple, Union
 
 import torch
 import torch.nn as nn
@@ -581,8 +583,243 @@ def _create_sam3_transformer(has_presence_token: bool = True) -> TransformerWrap
     return TransformerWrapper(encoder=encoder, decoder=decoder, d_model=256)
 
 
-def _load_checkpoint(model, checkpoint_path):
-    """Load model checkpoint from file."""
+logger = logging.getLogger("sam3.model_builder")
+
+DEFAULT_SAM3_REPO = "facebook/sam3"
+DEFAULT_SAM3_CKPT = "sam3.pt"
+DEFAULT_SAM3_CFG = "config.json"
+
+DEFAULT_EFFICIENTSAM3_REPO = "Simon7108528/EfficientSAM3"
+
+BACKBONE_TO_EFFICIENTSAM3_CKPT = {
+    "tinyvit": "efficientsam3_ft/efficientsam3_tinyvit.pt",
+    "tiny_vit": "efficientsam3_ft/efficientsam3_tinyvit.pt",
+    "tv": "efficientsam3_ft/efficientsam3_tinyvit.pt",
+    "tvm": "efficientsam3_ft/efficientsam3_tinyvit.pt",
+    "efficientvit": "efficientsam3_ft/efficientsam3_efficientvit.pt",
+    "efficient_vit": "efficientsam3_ft/efficientsam3_efficientvit.pt",
+    "ev": "efficientsam3_ft/efficientsam3_efficientvit.pt",
+    "evm": "efficientsam3_ft/efficientsam3_efficientvit.pt",
+    "repvit": "efficientsam3_ft/efficientsam3_repvit.pt",
+    "rep_vit": "efficientsam3_ft/efficientsam3_repvit.pt",
+    "rv": "efficientsam3_ft/efficientsam3_repvit.pt",
+    "rvm": "efficientsam3_ft/efficientsam3_repvit.pt",
+}
+
+KNOWN_CHECKPOINT_FILENAMES = {
+    "efficientsam3_tinyvit.pt": (DEFAULT_EFFICIENTSAM3_REPO, "efficientsam3_ft/efficientsam3_tinyvit.pt"),
+    "efficientsam3_efficientvit.pt": (DEFAULT_EFFICIENTSAM3_REPO, "efficientsam3_ft/efficientsam3_efficientvit.pt"),
+    "efficientsam3_repvit.pt": (DEFAULT_EFFICIENTSAM3_REPO, "efficientsam3_ft/efficientsam3_repvit.pt"),
+    "sam3.pt": (DEFAULT_SAM3_REPO, DEFAULT_SAM3_CKPT),
+}
+
+
+def get_default_hf_cache_dir() -> Optional[str]:
+    """Return standard Hugging Face cache directory ($HF_HOME/hub or $HF_HUB_CACHE)."""
+    if "HF_HUB_CACHE" in os.environ:
+        return os.environ["HF_HUB_CACHE"]
+    if "HF_HOME" in os.environ:
+        return os.path.join(os.environ["HF_HOME"], "hub")
+    return None
+
+
+def is_hf_repo_identifier(identifier: str) -> bool:
+    """Determine if a given string represents a Hugging Face repository identifier or URI."""
+    if not identifier or not isinstance(identifier, str):
+        return False
+    raw = identifier.strip()
+    if raw.startswith("hf://") or raw.startswith("https://huggingface.co/"):
+        return True
+    if os.path.exists(raw):
+        return False
+    if raw.startswith(("/", "./", "../", "checkpoints/", "outputs/", "output/", "assets/", "tests/")) or "\\" in raw:
+        return False
+    # If it ends with model weight extension and has no URI scheme or ':' syntax, treat as file path
+    ext = os.path.splitext(raw)[1].lower()
+    if ext in [".pt", ".pth", ".bin", ".safetensors", ".ckpt"] and ":" not in raw:
+        return False
+
+    repo_part = raw.split(":", 1)[0]
+    parts = repo_part.split("/")
+    if len(parts) == 2:
+        owner, repo = parts[0], parts[1]
+        if re.match(r"^[a-zA-Z0-9_\-\.]+$", owner) and re.match(r"^[a-zA-Z0-9_\-\.]+$", repo):
+            return True
+    return False
+
+
+def parse_hf_identifier(identifier: str) -> Tuple[str, Optional[str]]:
+    """Parse HF URI or identifier into (repo_id, optional_filename)."""
+    cleaned = identifier.strip()
+    if cleaned.startswith("hf://"):
+        cleaned = cleaned[5:]
+    elif cleaned.startswith("https://huggingface.co/"):
+        cleaned = cleaned[23:]
+        cleaned = re.sub(r"^(models/)?", "", cleaned)
+        cleaned = re.sub(r"/(resolve|blob)/[^/]+/", "/", cleaned)
+
+    if ":" in cleaned:
+        repo_id, filename = cleaned.split(":", 1)
+        return repo_id.strip().rstrip("/"), filename.strip().lstrip("/")
+    parts = cleaned.rstrip("/").split("/")
+    if len(parts) == 2:
+        return f"{parts[0]}/{parts[1]}", None
+    elif len(parts) > 2:
+        return f"{parts[0]}/{parts[1]}", "/".join(parts[2:])
+    return cleaned, None
+
+
+def download_ckpt_from_hf(
+    repo_id: Optional[str] = None,
+    filename: Optional[str] = None,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    revision: Optional[str] = None,
+    backbone_type: Optional[str] = None,
+    force_download: bool = False,
+) -> str:
+    """Download checkpoint from Hugging Face Hub into the standard HF cache directory."""
+    effective_cache = cache_dir or get_default_hf_cache_dir()
+
+    if repo_id is None:
+        if backbone_type and backbone_type.lower() in BACKBONE_TO_EFFICIENTSAM3_CKPT:
+            repo_id = DEFAULT_EFFICIENTSAM3_REPO
+            filename = filename or BACKBONE_TO_EFFICIENTSAM3_CKPT[backbone_type.lower()]
+        else:
+            repo_id = DEFAULT_SAM3_REPO
+            filename = filename or DEFAULT_SAM3_CKPT
+
+    if filename is None:
+        if repo_id == DEFAULT_SAM3_REPO:
+            filename = DEFAULT_SAM3_CKPT
+        elif backbone_type and backbone_type.lower() in BACKBONE_TO_EFFICIENTSAM3_CKPT:
+            filename = BACKBONE_TO_EFFICIENTSAM3_CKPT[backbone_type.lower()]
+        else:
+            filename = "efficientsam3_ft/efficientsam3_tinyvit.pt"
+
+    if repo_id == DEFAULT_SAM3_REPO:
+        try:
+            hf_hub_download(
+                repo_id=repo_id,
+                filename=DEFAULT_SAM3_CFG,
+                cache_dir=effective_cache,
+                token=token,
+                revision=revision,
+            )
+        except Exception:
+            pass
+
+    return hf_hub_download(
+        repo_id=repo_id,
+        filename=filename,
+        cache_dir=effective_cache,
+        token=token,
+        revision=revision,
+        force_download=force_download,
+    )
+
+
+def resolve_checkpoint_path(
+    checkpoint_path: Optional[str] = None,
+    backbone_type: Optional[str] = None,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    revision: Optional[str] = None,
+    force_download: bool = False,
+) -> Optional[str]:
+    """Resolve a checkpoint path or Hugging Face Hub reference to a local file path.
+    
+    Supports:
+      - Existing local file paths (absolute or relative)
+      - Existing local directories (finds newest/standard checkpoint file)
+      - Hugging Face Hub repo IDs (e.g. 'Simon7108528/EfficientSAM3', 'facebook/sam3')
+      - Hugging Face Hub file URIs (e.g. 'hf://Simon7108528/EfficientSAM3/efficientsam3_ft/...')
+      - Automatic fallback download for known checkpoint filenames when local file does not exist.
+      - Cached in standard HF cache folder ($HF_HOME/hub or ~/.cache/huggingface/hub).
+    """
+    if checkpoint_path is None or str(checkpoint_path).strip().lower() in ("none", "", "null"):
+        return None
+
+    raw_path = str(checkpoint_path).strip()
+
+    # 1. Existing local file
+    if os.path.isfile(raw_path):
+        return os.path.abspath(raw_path)
+
+    # 2. Existing local directory: search for common checkpoint files
+    if os.path.isdir(raw_path):
+        for cand in ["checkpoint.pt", "model.pt", "pytorch_model.bin", "sam3.pt",
+                     "efficientsam3_tinyvit.pt", "efficientsam3_efficientvit.pt", "efficientsam3_repvit.pt"]:
+            cand_p = os.path.join(raw_path, cand)
+            if os.path.isfile(cand_p):
+                return os.path.abspath(cand_p)
+
+    # 3. Check relative to workspace or repository roots
+    for base in ["/workspace", "/workspace/sam3-distil", os.getcwd()]:
+        cand = os.path.join(base, raw_path.lstrip("/"))
+        if os.path.isfile(cand):
+            return os.path.abspath(cand)
+
+    effective_cache_dir = cache_dir or get_default_hf_cache_dir()
+
+    # 4. Hugging Face URI or Repo ID
+    if is_hf_repo_identifier(raw_path):
+        repo_id, target_file = parse_hf_identifier(raw_path)
+        if not target_file:
+            if backbone_type and backbone_type.lower() in BACKBONE_TO_EFFICIENTSAM3_CKPT:
+                target_file = BACKBONE_TO_EFFICIENTSAM3_CKPT[backbone_type.lower()]
+            elif "sam3" in repo_id.lower() and "efficient" not in repo_id.lower():
+                target_file = DEFAULT_SAM3_CKPT
+            else:
+                target_file = "efficientsam3_ft/efficientsam3_tinyvit.pt"
+
+        logger.info(
+            f"Downloading checkpoint from Hugging Face Hub: {repo_id}/{target_file} "
+            f"(cache_dir={effective_cache_dir or 'default'})..."
+        )
+        return hf_hub_download(
+            repo_id=repo_id,
+            filename=target_file,
+            cache_dir=effective_cache_dir,
+            token=token,
+            revision=revision,
+            force_download=force_download,
+        )
+
+    # 5. Check if filename matches a known checkpoint for automated HF Hub fetch
+    basename = os.path.basename(raw_path)
+    if basename in KNOWN_CHECKPOINT_FILENAMES:
+        repo_id, target_file = KNOWN_CHECKPOINT_FILENAMES[basename]
+        logger.info(
+            f"Local checkpoint '{raw_path}' not found on disk. "
+            f"Fetching '{target_file}' from Hugging Face Hub '{repo_id}' into cache..."
+        )
+        try:
+            return hf_hub_download(
+                repo_id=repo_id,
+                filename=target_file,
+                cache_dir=effective_cache_dir,
+                token=token,
+                revision=revision,
+                force_download=force_download,
+            )
+        except Exception as exc:
+            logger.warning(f"Could not download checkpoint from Hugging Face Hub: {exc}")
+
+    # Fallback to raw_path
+    logger.warning(f"Checkpoint path '{checkpoint_path}' not found locally and not a recognized HF identifier.")
+    return raw_path
+
+
+def _load_checkpoint(model, checkpoint_path, backbone_type=None, cache_dir=None, token=None, force_download=False):
+    """Load model checkpoint from file or HF Hub."""
+    checkpoint_path = resolve_checkpoint_path(
+        checkpoint_path,
+        backbone_type=backbone_type,
+        cache_dir=cache_dir,
+        token=token,
+        force_download=force_download,
+    )
     with g_pathmgr.open(checkpoint_path, "rb") as f:
         # Check if torch version supports weights_only
         try:
@@ -653,6 +890,10 @@ def build_sam3_image_model(
     enable_vision_encoder=True,
     text_encoder_type=None,
     text_encoder_context_length=77,
+    cache_dir=None,
+    token=None,
+    force_download=False,
+    **kwargs,
 ):
     """
     Build SAM3 image model
@@ -661,10 +902,11 @@ def build_sam3_image_model(
         bpe_path: Path to the BPE tokenizer vocabulary
         device: Device to load the model on ('cuda' or 'cpu')
         eval_mode: Whether to set the model to evaluation mode
-        checkpoint_path: Optional path to model checkpoint
+        checkpoint_path: Optional path or Hugging Face identifier to model checkpoint
+        load_from_HF: Whether to download checkpoint from Hugging Face if checkpoint_path is None
         enable_segmentation: Whether to enable segmentation head
         enable_inst_interactivity: Whether to enable instance interactivity (SAM 1 task)
-        compile_mode: To enable compilation, set to "default"
+        compile: To enable compilation, set to True
         enable_text_encoder: Whether to enable text encoder
         enable_vision_encoder: Whether to enable vision encoder
         text_encoder_type: Optional student text encoder type for LiteText models
@@ -672,6 +914,9 @@ def build_sam3_image_model(
             If None, uses the standard SAM3 text encoder.
         text_encoder_context_length: Target context length for text encoder (default: 77).
             Only used when text_encoder_type is set. Common values: 16, 32, 77.
+        cache_dir: Optional HF cache directory.
+        token: Optional HF authentication token.
+        force_download: Whether to force re-download from HF even if cached.
 
     Returns:
         A SAM3 image model
@@ -734,11 +979,24 @@ def build_sam3_image_model(
         inst_predictor,
         eval_mode,
     )
-    if load_from_HF and checkpoint_path is None:
-        checkpoint_path = download_ckpt_from_hf()
+    if checkpoint_path is not None:
+        checkpoint_path = resolve_checkpoint_path(
+            checkpoint_path,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
+    elif load_from_HF:
+        checkpoint_path = download_ckpt_from_hf(
+            repo_id=DEFAULT_SAM3_REPO,
+            filename=DEFAULT_SAM3_CKPT,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
     # Load checkpoint if provided
     if checkpoint_path is not None:
-        _load_checkpoint(model, checkpoint_path)
+        _load_checkpoint(model, checkpoint_path, cache_dir=cache_dir, token=token, force_download=force_download)
 
     # Truncate text encoder context length after checkpoint loading
     if text_encoder_type and text_encoder_context_length < 77:
@@ -748,15 +1006,6 @@ def build_sam3_image_model(
     model = _setup_device_and_mode(model, device, eval_mode)
 
     return model
-
-
-def download_ckpt_from_hf():
-    SAM3_MODEL_ID = "facebook/sam3"
-    SAM3_CKPT_NAME = "sam3.pt"
-    SAM3_CFG_NAME = "config.json"
-    _ = hf_hub_download(repo_id=SAM3_MODEL_ID, filename=SAM3_CFG_NAME)
-    checkpoint_path = hf_hub_download(repo_id=SAM3_MODEL_ID, filename=SAM3_CKPT_NAME)
-    return checkpoint_path
 
 
 import torch.nn.functional as F
@@ -956,6 +1205,10 @@ def build_efficientsam3_image_model(
     efficientvit_model=None,
     text_encoder_type=None, # e.g. "MobileCLIP-S0"
     text_encoder_context_length=77,
+    cache_dir=None,
+    token=None,
+    force_download=False,
+    **kwargs,
 ):
     """
     Build EfficientSAM3 image model with a student backbone
@@ -964,8 +1217,8 @@ def build_efficientsam3_image_model(
         bpe_path: Path to the BPE tokenizer vocabulary
         device: Device to load the model on ('cuda' or 'cpu')
         eval_mode: Whether to set the model to evaluation mode
-        checkpoint_path: Optional path to EfficientSAM3 model checkpoint
-        load_from_HF: Whether to load checkpoint from HuggingFace (if available)
+        checkpoint_path: Optional path or Hugging Face identifier to EfficientSAM3 model checkpoint
+        load_from_HF: Whether to load checkpoint from Hugging Face if checkpoint_path is None
         enable_segmentation: Whether to enable segmentation head
         enable_inst_interactivity: Whether to enable instance interactivity (SAM 1 task)
         compile: To enable compilation, set to True
@@ -975,6 +1228,9 @@ def build_efficientsam3_image_model(
         text_encoder_type: Type of text encoder (e.g. 'MobileCLIP-S0'). If None, uses standard SAM3 text encoder.
         text_encoder_context_length: Target context length for text encoder (default: 77).
             Only used when text_encoder_type is set. Common values: 16, 32, 77.
+        cache_dir: Optional HF cache directory.
+        token: Optional HF authentication token.
+        force_download: Whether to force re-download from HF even if cached.
 
     Returns:
         An EfficientSAM3 image model
@@ -1036,17 +1292,37 @@ def build_efficientsam3_image_model(
         inst_predictor,
         eval_mode,
     )
-    if load_from_HF and checkpoint_path is None:
-        # For EfficientSAM3, you may need to specify a different HuggingFace repo
-        # checkpoint_path = download_ckpt_from_hf()  # Update this for EfficientSAM3
-        pass
+    if checkpoint_path is not None:
+        checkpoint_path = resolve_checkpoint_path(
+            checkpoint_path,
+            backbone_type=backbone_type,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
+    elif load_from_HF:
+        checkpoint_path = download_ckpt_from_hf(
+            repo_id=DEFAULT_EFFICIENTSAM3_REPO,
+            backbone_type=backbone_type,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
+
     # Truncate text encoder context length BEFORE checkpoint loading
     # This resizes positional embeddings so checkpoint can be loaded
     if text_encoder_type and text_encoder_context_length < 77:
         model.backbone.language_backbone.set_context_length(text_encoder_context_length)
     # Load checkpoint if provided
     if checkpoint_path is not None:
-        _load_checkpoint(model, checkpoint_path)
+        _load_checkpoint(
+            model,
+            checkpoint_path,
+            backbone_type=backbone_type,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
     # Setup device and mode
     model = _setup_device_and_mode(model, device, eval_mode)
 
@@ -1065,6 +1341,10 @@ def build_sam3_video_model(
     compile=False,
     text_encoder_type: Optional[str] = None,
     text_encoder_context_length: int = 77,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    force_download: bool = False,
+    **kwargs,
 ) -> Sam3VideoInferenceWithInstanceInteractivity:
     """
     Build SAM3 dense tracking model.
@@ -1193,7 +1473,13 @@ def build_sam3_video_model(
 
         # 2. Load fully-merged LiteText video checkpoint (detector + tracker + student text encoder)
         if checkpoint_path is not None:
-            ckpt = _load_state_dict_from_path(checkpoint_path)
+            checkpoint_path = resolve_checkpoint_path(
+                checkpoint_path,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+            )
+            ckpt = _load_state_dict_from_path(checkpoint_path, cache_dir=cache_dir, token=token)
             # Clean keys: remove student_trunk. prefix
             cleaned = {}
             for k, v in ckpt.items():
@@ -1211,8 +1497,21 @@ def build_sam3_video_model(
             model.detector.backbone.language_backbone.set_context_length(text_encoder_context_length)
     else:
         # Standard SAM3 video model loading
-        if load_from_HF and checkpoint_path is None:
-            checkpoint_path = download_ckpt_from_hf()
+        if checkpoint_path is not None:
+            checkpoint_path = resolve_checkpoint_path(
+                checkpoint_path,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+            )
+        elif load_from_HF:
+            checkpoint_path = download_ckpt_from_hf(
+                repo_id=DEFAULT_SAM3_REPO,
+                filename=DEFAULT_SAM3_CKPT,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+            )
         if checkpoint_path is not None:
             with g_pathmgr.open(checkpoint_path, "rb") as f:
                 try:
@@ -1240,7 +1539,11 @@ def build_sam3_video_predictor(*model_args, gpus_to_use=None, **model_kwargs):
     )
 
 
-def _load_state_dict_from_path(checkpoint_path: str) -> dict:
+def _load_state_dict_from_path(
+    checkpoint_path: str,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+) -> dict:
     """Load a checkpoint dict from path and return the raw state_dict-like mapping.
 
     Supports checkpoints saved as:
@@ -1248,6 +1551,7 @@ def _load_state_dict_from_path(checkpoint_path: str) -> dict:
     - {"state_dict": state_dict}
     - state_dict
     """
+    checkpoint_path = resolve_checkpoint_path(checkpoint_path, cache_dir=cache_dir, token=token)
     with g_pathmgr.open(checkpoint_path, "rb") as f:
         try:
             ckpt = torch.load(f, map_location="cpu", weights_only=True)
@@ -1276,6 +1580,10 @@ def build_efficientsam3_video_model(
     text_encoder_type: Optional[str] = None,
     text_encoder_context_length: int = 77,
     enable_inst_interactivity: bool = True,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    force_download: bool = False,
+    **kwargs,
 ) -> Sam3VideoInferenceWithInstanceInteractivity:
     """Build EfficientSAM3 video model (main-branch implementation).
 
@@ -1358,8 +1666,22 @@ def build_efficientsam3_video_model(
         compile_model=compile,
     )
 
-    if load_from_HF and checkpoint_path is None:
-        checkpoint_path = download_ckpt_from_hf()
+    if checkpoint_path is not None:
+        checkpoint_path = resolve_checkpoint_path(
+            checkpoint_path,
+            backbone_type=backbone_type,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
+    elif load_from_HF:
+        checkpoint_path = download_ckpt_from_hf(
+            repo_id=DEFAULT_EFFICIENTSAM3_REPO,
+            backbone_type=backbone_type,
+            cache_dir=cache_dir,
+            token=token,
+            force_download=force_download,
+        )
     if checkpoint_path is not None:
         with g_pathmgr.open(checkpoint_path, "rb") as f:
             try:
@@ -1402,3 +1724,113 @@ def build_efficientsam3_video_predictor(*model_args, gpus_to_use=None, **model_k
     model_kwargs = dict(model_kwargs)
     model_kwargs["use_efficientsam3"] = True
     return Sam3VideoPredictorMultiGPU(*model_args, gpus_to_use=gpus_to_use, **model_kwargs)
+
+
+def from_pretrained(
+    pretrained_model_name_or_path: Optional[str] = None,
+    *model_args,
+    backbone_type: Optional[str] = None,
+    model_name: Optional[str] = None,
+    device: Optional[str] = None,
+    eval_mode: bool = True,
+    cache_dir: Optional[str] = None,
+    token: Optional[str] = None,
+    force_download: bool = False,
+    is_video: bool = False,
+    **kwargs,
+) -> nn.Module:
+    """Load a SAM3 or EfficientSAM3 model just like standard Hugging Face load from pretrained.
+
+    Args:
+        pretrained_model_name_or_path: Path to checkpoint, HF repo ID (e.g. 'Simon7108528/EfficientSAM3',
+            'facebook/sam3'), HF URI ('hf://...'), or HF URL.
+        backbone_type: Vision backbone architecture ('tinyvit', 'efficientvit', 'repvit', 'sam3').
+        model_name: Backbone variant (e.g. '11m', 'b0', 'm1.1').
+        device: Device to place the model on ('cuda' or 'cpu').
+        eval_mode: Whether to set model to evaluation mode (default: True).
+        cache_dir: Hugging Face cache directory ($HF_HOME/hub or ~/.cache/huggingface/hub).
+        token: Optional Hugging Face auth token.
+        force_download: Whether to force re-download even if cached.
+        is_video: Whether to build a video tracking model instead of an image model.
+        **kwargs: Additional arguments passed to builder functions.
+
+    Returns:
+        Loaded SAM3 or EfficientSAM3 model instance.
+    """
+    if device is None:
+        device = "cuda" if torch.cuda.is_available() else "cpu"
+
+    raw_ident = str(pretrained_model_name_or_path or "").lower()
+
+    # Determine whether this is an EfficientSAM3 model or standard SAM3
+    is_efficient = False
+    if backbone_type and backbone_type.lower() in ("tinyvit", "efficientvit", "repvit"):
+        is_efficient = True
+    elif any(k in raw_ident for k in ["efficient", "tinyvit", "repvit", "simon7108528"]):
+        is_efficient = True
+
+    if is_efficient:
+        if backbone_type is None:
+            if "tinyvit" in raw_ident:
+                backbone_type = "tinyvit"
+                model_name = model_name or "11m"
+            elif "repvit" in raw_ident:
+                backbone_type = "repvit"
+                model_name = model_name or "m1.1"
+            else:
+                backbone_type = "efficientvit"
+                model_name = model_name or "b0"
+
+        if is_video:
+            return build_efficientsam3_video_model(
+                checkpoint_path=pretrained_model_name_or_path,
+                load_from_HF=True if pretrained_model_name_or_path is None else False,
+                backbone_type=backbone_type,
+                model_name=model_name or "m1.1",
+                device=device,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+                **kwargs,
+            )
+        else:
+            return build_efficientsam3_image_model(
+                checkpoint_path=pretrained_model_name_or_path,
+                load_from_HF=True if pretrained_model_name_or_path is None else False,
+                backbone_type=backbone_type,
+                model_name=model_name or ("11m" if backbone_type == "tinyvit" else ("m1.1" if backbone_type == "repvit" else "b0")),
+                device=device,
+                eval_mode=eval_mode,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+                **kwargs,
+            )
+    else:
+        if is_video:
+            return build_sam3_video_model(
+                checkpoint_path=pretrained_model_name_or_path,
+                load_from_HF=True,
+                device=device,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+                **kwargs,
+            )
+        else:
+            return build_sam3_image_model(
+                checkpoint_path=pretrained_model_name_or_path,
+                load_from_HF=True,
+                device=device,
+                eval_mode=eval_mode,
+                cache_dir=cache_dir,
+                token=token,
+                force_download=force_download,
+                **kwargs,
+            )
+
+
+build_sam3_image_model.from_pretrained = from_pretrained
+build_efficientsam3_image_model.from_pretrained = from_pretrained
+build_sam3_video_model.from_pretrained = from_pretrained
+build_efficientsam3_video_model.from_pretrained = from_pretrained
