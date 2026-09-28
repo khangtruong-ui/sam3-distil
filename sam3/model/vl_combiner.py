@@ -47,6 +47,14 @@ class SAM3VLBackbone(nn.Module):
         # allow running activation checkpointing on the entire vision and language backbones
         self.act_ckpt_whole_vision_backbone = act_ckpt_whole_vision_backbone
         self.act_ckpt_whole_language_backbone = act_ckpt_whole_language_backbone
+        self._text_cache = {}
+
+    def clear_text_cache(self):
+        """Clear cached text prompt embeddings."""
+        if hasattr(self, "_text_cache"):
+            self._text_cache.clear()
+        if hasattr(self.language_backbone, "clear_text_cache"):
+            self.language_backbone.clear_text_cache()
 
     def forward(
         self,
@@ -126,8 +134,18 @@ class SAM3VLBackbone(nn.Module):
     def forward_text(
         self, captions, input_boxes=None, additional_text=None, device=None
     ):
+        can_cache = (input_boxes is None) and (additional_text is None) and (not self.training)
+        if can_cache:
+            if device is None:
+                from sam3.device import get_device
+                device = get_device()
+            cache_key = (tuple(captions), str(device))
+            if hasattr(self, "_text_cache") and cache_key in self._text_cache:
+                cached = self._text_cache[cache_key]
+                return {k: v.clone() for k, v in cached.items()}
+
         try:
-            return activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
+            res = activation_ckpt_wrapper(self._forward_text_no_ack_ckpt)(
                 captions=captions,
                 input_boxes=input_boxes,
                 additional_text=additional_text,
@@ -137,13 +155,21 @@ class SAM3VLBackbone(nn.Module):
         except RuntimeError as exc:
             if "FIND was unable to find an engine" in str(exc) or "cuDNN" in str(exc):
                 with torch.backends.cudnn.flags(enabled=False):
-                    return self._forward_text_no_ack_ckpt(
+                    res = self._forward_text_no_ack_ckpt(
                         captions=captions,
                         input_boxes=input_boxes,
                         additional_text=additional_text,
                         device=device,
                     )
-            raise exc
+            else:
+                raise exc
+
+        if can_cache:
+            if not hasattr(self, "_text_cache"):
+                self._text_cache = {}
+            self._text_cache[cache_key] = {k: v.detach().clone() for k, v in res.items()}
+
+        return res
 
     def _forward_text_no_ack_ckpt(
         self,
