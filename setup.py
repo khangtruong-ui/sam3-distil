@@ -23,6 +23,8 @@ setup(
         "Pillow>=9.0.0",
         "matplotlib>=3.5.0",
         "omegaconf>=2.3.0",
+        "einops>=0.7.0",
+        "pycocotools>=2.0.7",
     ],
     extras_require={
         "dev": ["pytest>=8.0.0", "pytest-cov>=4.0.0"],

@@ -38,6 +38,8 @@ dependencies = [
     "Pillow>=9.0.0",
     "matplotlib>=3.5.0",
     "omegaconf>=2.3.0",
+    "einops>=0.7.0",
+    "pycocotools>=2.0.7",
 ]
 
 [project.optional-dependencies]
