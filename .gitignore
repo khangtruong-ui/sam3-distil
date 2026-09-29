@@ -39,3 +39,6 @@ htmlcov/
 .DS_Store
 *.swp
 *.swo
+
+# Benchmark generated visualizations
+benchmark_vis.png
